@@ -135,8 +135,12 @@ check_step "Install setuptools_scm"
 uv pip install --python "$VENV_DIR/bin/python" setuptools_scm
 status_ok
 
+export NINJA="$(command -v ninja)"
+export CMAKE_MAKE_PROGRAM="$NINJA"
+echo "Using NINJA: $NINJA"
+echo "Using CMAKE_MAKE_PROGRAM: $CMAKE_MAKE_PROGRAM"
+
 check_step "Install vllm"
-echo "Using ninja: $(command -v ninja)"
 uv pip install --python "$VENV_DIR/bin/python" --torch-backend=auto --no-build-isolation "$VLLM_SPEC"
 status_ok
 
