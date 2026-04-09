@@ -9,6 +9,22 @@ PYTHON_BIN="${PYTHON_BIN:-}"
 RED="\033[31m"
 GREEN="\033[32m"
 RESET="\033[0m"
+DO_CLEANUP=0
+
+for arg in "$@"; do
+  case "$arg" in
+    --cleanup)
+      DO_CLEANUP=1
+      ;;
+    *)
+      cat <<MSG >&2
+ERROR: unknown argument: $arg
+Use --cleanup to remove the local .venv.
+MSG
+      exit 1
+      ;;
+  esac
+done
 
 check_step() {
   printf 'Checking %s... ' "$1"
@@ -21,6 +37,19 @@ status_ok() {
 status_fail() {
   printf '%b[fail]%b\n' "$RED" "$RESET"
 }
+
+if (( DO_CLEANUP )); then
+  check_step "Remove venv"
+  if [[ -d "$VENV_DIR" ]]; then
+    rm -rf "$VENV_DIR"
+    status_ok
+    echo "Removed: $VENV_DIR"
+  else
+    status_ok
+    echo "No venv present at: $VENV_DIR"
+  fi
+  exit 0
+fi
 
 detect_python_bin() {
   if [[ -n "$PYTHON_BIN" ]]; then
@@ -87,6 +116,9 @@ uv python install "$PYTHON_VERSION" >/dev/null 2>&1 || true
 UV_VENV_CLEAR=1 uv venv --clear --python "$PYTHON_BIN" "$VENV_DIR"
 status_ok
 
+export PATH="$VENV_DIR/bin:$PATH"
+echo "Using PATH prefix: $VENV_DIR/bin"
+
 check_step "Upgrade pip"
 uv pip install --python "$VENV_DIR/bin/python" --upgrade pip
 status_ok
@@ -95,11 +127,16 @@ check_step "Install torch"
 uv pip install --python "$VENV_DIR/bin/python" --torch-backend=auto torch
 status_ok
 
+check_step "Install ninja"
+uv pip install --python "$VENV_DIR/bin/python" ninja
+status_ok
+
 check_step "Install setuptools_scm"
 uv pip install --python "$VENV_DIR/bin/python" setuptools_scm
 status_ok
 
 check_step "Install vllm"
+echo "Using ninja: $(command -v ninja)"
 uv pip install --python "$VENV_DIR/bin/python" --torch-backend=auto --no-build-isolation "$VLLM_SPEC"
 status_ok
 
