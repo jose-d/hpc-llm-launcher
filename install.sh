@@ -95,6 +95,10 @@ check_step "Install torch"
 uv pip install --python "$VENV_DIR/bin/python" --torch-backend=auto torch
 status_ok
 
+check_step "Install setuptools_scm"
+uv pip install --python "$VENV_DIR/bin/python" setuptools_scm
+status_ok
+
 check_step "Install vllm"
 uv pip install --python "$VENV_DIR/bin/python" --torch-backend=auto --no-build-isolation "$VLLM_SPEC"
 status_ok
