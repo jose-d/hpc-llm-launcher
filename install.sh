@@ -137,8 +137,10 @@ status_ok
 
 export NINJA="$(command -v ninja)"
 export CMAKE_MAKE_PROGRAM="$NINJA"
+export CMAKE_ARGS="-DCMAKE_MAKE_PROGRAM=$CMAKE_MAKE_PROGRAM"
 echo "Using NINJA: $NINJA"
 echo "Using CMAKE_MAKE_PROGRAM: $CMAKE_MAKE_PROGRAM"
+echo "Using CMAKE_ARGS: $CMAKE_ARGS"
 
 check_step "Install vllm"
 uv pip install --python "$VENV_DIR/bin/python" --torch-backend=auto --no-build-isolation "$VLLM_SPEC"
