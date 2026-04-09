@@ -47,6 +47,7 @@ MAX_MODEL_LEN="${MAX_MODEL_LEN:-32768}"
 MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-4096}"
 SWAP_SPACE_GB="${SWAP_SPACE_GB:-0}"
 VLLM_HOST="${VLLM_HOST:-0.0.0.0}"
+TORCH_LIB_DIR="${TORCH_LIB_DIR:-}"
 
 cd "$VLLM_WORKDIR"
 
@@ -54,6 +55,19 @@ if [[ -n "$VLLM_STARTUP_CMD" ]]; then
   eval "$VLLM_STARTUP_CMD"
 elif [[ -x ./setup-env.sh ]]; then
   ./setup-env.sh
+fi
+
+if [[ -z "$TORCH_LIB_DIR" ]]; then
+  for candidate in "$VLLM_WORKDIR"/.venv/lib/python*/site-packages/torch/lib; do
+    if [[ -d "$candidate" ]]; then
+      TORCH_LIB_DIR="$candidate"
+      break
+    fi
+  done
+fi
+
+if [[ -n "$TORCH_LIB_DIR" && -d "$TORCH_LIB_DIR" ]]; then
+  export LD_LIBRARY_PATH="$TORCH_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
 
 export HF_HOME="${HF_HOME:-/tmp/$USER/hf-cache}"
@@ -85,6 +99,7 @@ echo "[$(date -Is)] gmu:   $GPU_MEMORY_UTILIZATION"
 echo "[$(date -Is)] mbt:   $MAX_NUM_BATCHED_TOKENS"
 echo "[$(date -Is)] swap:  ${SWAP_SPACE_GB}G"
 echo "[$(date -Is)] exec:  $VLLM_EXEC"
+echo "[$(date -Is)] torch: ${TORCH_LIB_DIR:-<not-set>}"
 
 if [[ ! -x "$VLLM_EXEC" ]]; then
   echo "[$(date -Is)] ERROR: vLLM executable not found: $VLLM_EXEC" >&2

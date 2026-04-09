@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="${VENV_DIR:-$ROOT_DIR/.venv}"
+BUILD_LOG="${BUILD_LOG:-$ROOT_DIR/build.log}"
 VLLM_VERSION="${VLLM_VERSION:-0.19.0}"
 VLLM_SPEC="${VLLM_SPEC:-vllm==${VLLM_VERSION}}"
 TORCH_SPEC="${TORCH_SPEC:-torch==2.10.0}"
@@ -24,6 +25,14 @@ RED="\033[31m"
 GREEN="\033[32m"
 RESET="\033[0m"
 DO_CLEANUP=0
+
+if [[ "${INSTALL_SH_LOGGING:-0}" != "1" ]]; then
+  mkdir -p "$(dirname "$BUILD_LOG")"
+  : > "$BUILD_LOG"
+  export INSTALL_SH_LOGGING=1
+  export BUILD_LOG
+  exec > >(tee "$BUILD_LOG") 2>&1
+fi
 
 for arg in "$@"; do
   case "$arg" in
@@ -171,6 +180,19 @@ detect_gcc_major_version() {
   printf '%s\n' "$version"
 }
 
+detect_gcc_nonshared_archive() {
+  local compiler="$1"
+  local archive
+
+  archive="$("$compiler" -print-file-name=libstdc++_nonshared.a 2>/dev/null || true)"
+  if [[ -n "$archive" && "$archive" != "libstdc++_nonshared.a" && -f "$archive" ]]; then
+    printf '%s\n' "$archive"
+    return 0
+  fi
+
+  return 1
+}
+
 sanitize_path() {
   local old_path="$1"
   local part
@@ -285,6 +307,18 @@ echo "Using CC: $CC"
 echo "Using CXX: $CXX"
 echo "Using GCC major version: $GCC_MAJOR_VERSION"
 
+check_step "GCC runtime support"
+if ! GCC_NONSHARED_ARCHIVE="$(detect_gcc_nonshared_archive "$CXX")"; then
+  die <<MSG
+ERROR: failed to locate libstdc++_nonshared.a for: $CXX
+The local vLLM source build needs the GCC nonshared runtime archive so
+extensions linked with GCC $GCC_MAJOR_VERSION do not leave __cxa_call_terminate unresolved.
+MSG
+fi
+GCC_NONSHARED_DIR="$(dirname "$GCC_NONSHARED_ARCHIVE")"
+status_ok
+echo "Using GCC nonshared archive: $GCC_NONSHARED_ARCHIVE"
+
 mkdir -p "$ROOT_DIR"
 mkdir -p "$PIP_CACHE_DIR"
 export PIP_CACHE_DIR
@@ -343,7 +377,9 @@ if NINJA_BIN="$(detect_ninja_bin)"; then
   export PATH="$(dirname "$NINJA_BIN"):$PATH"
   export CMAKE_MAKE_PROGRAM="$NINJA_BIN"
   export NVCC_PREPEND_FLAGS="${NVCC_PREPEND_FLAGS:-} -ccbin=$CXX"
-  export CMAKE_ARGS="${CMAKE_ARGS:-} -DCMAKE_MAKE_PROGRAM=$NINJA_BIN -DCMAKE_CUDA_HOST_COMPILER=$CXX -DCMAKE_CUDA_FLAGS=--compiler-bindir=$CXX"
+  export LIBRARY_PATH="$GCC_NONSHARED_DIR${LIBRARY_PATH:+:$LIBRARY_PATH}"
+  export LDFLAGS="${LDFLAGS:-} -Wl,--undefined=__cxa_call_terminate -L$GCC_NONSHARED_DIR -lstdc++_nonshared"
+  export CMAKE_ARGS="${CMAKE_ARGS:-} -DCMAKE_MAKE_PROGRAM=$NINJA_BIN -DCMAKE_CUDA_HOST_COMPILER=$CXX -DCMAKE_CUDA_FLAGS=--compiler-bindir=$CXX -DCMAKE_CXX_STANDARD_LIBRARIES=-L$GCC_NONSHARED_DIR\\ -lstdc++_nonshared -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--undefined=__cxa_call_terminate -DCMAKE_MODULE_LINKER_FLAGS=-Wl,--undefined=__cxa_call_terminate"
 fi
 
 check_step "Install torch"
