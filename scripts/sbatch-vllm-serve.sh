@@ -25,7 +25,11 @@ set -euo pipefail
 #   export MAX_NUM_BATCHED_TOKENS=4096
 #   export SWAP_SPACE_GB=0
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
+  REPO_ROOT="$SLURM_SUBMIT_DIR"
+else
+  REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
 if [[ -f "$REPO_ROOT/.env" ]]; then
   # shellcheck disable=SC1090
   source "$REPO_ROOT/.env"
