@@ -11,7 +11,7 @@ A small, self-contained vLLM launcher bundle for Slurm.
 ## Quick start
 
 1. Copy `.env.example` to `.env` and edit it.
-2. Run `./install.sh` to create a local `.venv` with `venv` and install `vllm` with `pip`.
+2. Run `./install.sh` to create a local `.venv`, install the `torch` version expected by the pinned `vllm`, then install `vllm`.
 3. Submit the script with `sbatch`.
 
 Example:
@@ -27,5 +27,5 @@ sbatch -p gpu -N 1 --gres=gpu:1 scripts/sbatch-vllm-serve.sh
 - The launcher does not depend on the `skills/` tree.
 - It defaults to the repository root as `VLLM_WORKDIR`.
 - If `.env` exists in the repo root, the launcher will source it.
-- `install.sh` expects a recent `python3` on `PATH` and uses `python -m venv` plus `pip`.
+- `install.sh` expects a recent `python3` on `PATH`, uses `python -m venv`, preinstalls a `torch` version compatible with the selected `vllm`, and then installs `vllm` with `uv pip`.
 - Under Slurm, the launcher uses `SLURM_SUBMIT_DIR` so the repo root resolves correctly instead of Slurm's spool directory.
