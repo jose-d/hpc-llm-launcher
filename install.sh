@@ -8,6 +8,21 @@ PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 PYTHON_BIN="${PYTHON_BIN:-}"
 CUDA_HOME="${CUDA_HOME:-}"
 GCC_TOOLSET_ENABLE="${GCC_TOOLSET_ENABLE:-}"
+RED="\033[31m"
+GREEN="\033[32m"
+RESET="\033[0m"
+
+check_step() {
+  printf 'Checking %s... ' "$1"
+}
+
+status_ok() {
+  printf '%b[ok]%b\n' "$GREEN" "$RESET"
+}
+
+status_fail() {
+  printf '%b[fail]%b\n' "$RED" "$RESET"
+}
 
 detect_gcc_toolset_enable() {
   if [[ -n "$GCC_TOOLSET_ENABLE" && -f "$GCC_TOOLSET_ENABLE" ]]; then
@@ -90,23 +105,31 @@ detect_python_bin() {
   return 1
 }
 
+check_step "uv"
 if ! command -v uv >/dev/null 2>&1; then
+  status_fail >&2
   cat <<'MSG' >&2
 ERROR: uv is not installed or not on PATH.
 Install uv first, then rerun this script.
 MSG
   exit 1
 fi
+status_ok
 
+check_step "ninja"
 if ! command -v ninja >/dev/null 2>&1; then
+  status_fail >&2
   cat <<'MSG' >&2
 ERROR: ninja is not installed or not on PATH.
 Install ninja before rerunning this script.
 MSG
   exit 1
 fi
+status_ok
 
+check_step "Python interpreter"
 if ! PYTHON_BIN="$(detect_python_bin)"; then
+  status_fail >&2
   cat <<'MSG' >&2
 ERROR: no usable python3 interpreter was found on PATH.
 Install Python 3.11+ or set PYTHON_BIN explicitly.
@@ -120,6 +143,7 @@ case "$PYTHON_MAJOR_MINOR" in
     PYTHON_VERSION="$PYTHON_MAJOR_MINOR"
     ;;
   *)
+    status_fail >&2
     cat <<MSG >&2
 ERROR: unsupported Python version detected: $PYTHON_MAJOR_MINOR
 Install Python 3.11, 3.12, or 3.13, or set PYTHON_BIN explicitly.
@@ -127,9 +151,12 @@ MSG
     exit 1
     ;;
 esac
+status_ok
+echo "Using Python: $PYTHON_BIN ($PYTHON_VERSION)"
 
 mkdir -p "$ROOT_DIR"
 
+check_step "GCC toolset"
 if [[ -z "$GCC_TOOLSET_ENABLE" ]]; then
   if GCC_TOOLSET_ENABLE="$(detect_gcc_toolset_enable)"; then
     # shellcheck disable=SC1090
@@ -139,21 +166,25 @@ elif [[ -f "$GCC_TOOLSET_ENABLE" ]]; then
   # shellcheck disable=SC1090
   source "$GCC_TOOLSET_ENABLE"
 else
+  status_fail >&2
   cat <<'MSG' >&2
 ERROR: GCC_TOOLSET_ENABLE is set but does not point to a readable enable script.
 MSG
   exit 1
 fi
+status_ok
+echo "Using compiler toolset: ${GCC_TOOLSET_ENABLE:-<not set>}"
 
 if command -v gcc >/dev/null 2>&1; then
-  echo "[$(date -Is)] gcc: $(command -v gcc)"
+  echo "gcc: $(command -v gcc)"
   gcc --version | sed -n '1p'
 fi
 if command -v g++ >/dev/null 2>&1; then
-  echo "[$(date -Is)] g++: $(command -v g++)"
+  echo "g++: $(command -v g++)"
   g++ --version | sed -n '1p'
 fi
 
+check_step "CUDA toolkit"
 if [[ -z "$CUDA_HOME" ]]; then
   if CUDA_HOME="$(detect_cuda_home)"; then
     export CUDA_HOME
@@ -161,19 +192,34 @@ if [[ -z "$CUDA_HOME" ]]; then
 fi
 
 if [[ -z "${CUDA_HOME:-}" ]]; then
+  status_fail >&2
   cat <<'MSG' >&2
 ERROR: CUDA_HOME is not set and CUDA could not be autodetected.
 Install or load a CUDA toolkit before running this script, or set CUDA_HOME explicitly.
 MSG
   exit 1
 fi
+status_ok
+echo "Using CUDA_HOME: $CUDA_HOME"
 
 export CUDA_HOME
 
+check_step "Create venv"
 uv python install "$PYTHON_VERSION" >/dev/null 2>&1 || true
 UV_VENV_CLEAR=1 uv venv --clear --python "$PYTHON_BIN" "$VENV_DIR"
+status_ok
+
+check_step "Upgrade pip"
 uv pip install --python "$VENV_DIR/bin/python" --upgrade pip
+status_ok
+
+check_step "Install build deps"
+uv pip install --python "$VENV_DIR/bin/python" ninja numpy
+status_ok
+
+check_step "Install vllm"
 uv pip install --python "$VENV_DIR/bin/python" "$VLLM_SPEC"
+status_ok
 
 cat <<MSG
 llm_launcher bootstrap complete.
