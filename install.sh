@@ -66,7 +66,7 @@ fi
 export CUDA_HOME
 
 uv python install "$PYTHON_VERSION" >/dev/null 2>&1 || true
-uv venv --python "$PYTHON_VERSION" "$VENV_DIR"
+UV_VENV_CLEAR=1 uv venv --clear --python "$PYTHON_VERSION" "$VENV_DIR"
 uv pip install --python "$VENV_DIR/bin/python" --upgrade pip
 uv pip install --python "$VENV_DIR/bin/python" "$VLLM_SPEC"
 
