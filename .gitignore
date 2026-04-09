@@ -1,0 +1,6 @@
+.env
+.venv/
+*.swp
+*.swo
+logs/
+run/
