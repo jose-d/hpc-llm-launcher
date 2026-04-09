@@ -92,7 +92,7 @@ uv pip install --python "$VENV_DIR/bin/python" --upgrade pip
 status_ok
 
 check_step "Install vllm"
-uv pip install --python "$VENV_DIR/bin/python" --torch-backend=auto "$VLLM_SPEC"
+uv pip install --python "$VENV_DIR/bin/python" --torch-backend=auto --no-build-isolation "$VLLM_SPEC"
 status_ok
 
 cat <<MSG
