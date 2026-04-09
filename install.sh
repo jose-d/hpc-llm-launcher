@@ -71,17 +71,6 @@ detect_python_bin() {
   return 1
 }
 
-check_step "uv"
-if ! command -v uv >/dev/null 2>&1; then
-  status_fail >&2
-  cat <<'MSG' >&2
-ERROR: uv is not installed or not on PATH.
-Install uv first, then rerun this script.
-MSG
-  exit 1
-fi
-status_ok
-
 check_step "Python interpreter"
 if ! PYTHON_BIN="$(detect_python_bin)"; then
   status_fail >&2
@@ -112,38 +101,14 @@ echo "Using Python: $PYTHON_BIN ($PYTHON_VERSION)"
 mkdir -p "$ROOT_DIR"
 
 check_step "Create venv"
-uv python install "$PYTHON_VERSION" >/dev/null 2>&1 || true
-UV_VENV_CLEAR=1 uv venv --clear --python "$PYTHON_BIN" "$VENV_DIR"
+rm -rf "$VENV_DIR"
+"$PYTHON_BIN" -m venv "$VENV_DIR"
 status_ok
-
-export PATH="$VENV_DIR/bin:$PATH"
-echo "Using PATH prefix: $VENV_DIR/bin"
-
-check_step "Upgrade pip"
-uv pip install --python "$VENV_DIR/bin/python" --upgrade pip
-status_ok
-
-check_step "Install torch"
-uv pip install --python "$VENV_DIR/bin/python" --torch-backend=auto torch
-status_ok
-
-check_step "Install ninja"
-uv pip install --python "$VENV_DIR/bin/python" ninja
-status_ok
-
-check_step "Install setuptools_scm"
-uv pip install --python "$VENV_DIR/bin/python" setuptools_scm
-status_ok
-
-export NINJA="$(command -v ninja)"
-export CMAKE_MAKE_PROGRAM="$NINJA"
-export CMAKE_ARGS="-DCMAKE_MAKE_PROGRAM=$CMAKE_MAKE_PROGRAM"
-echo "Using NINJA: $NINJA"
-echo "Using CMAKE_MAKE_PROGRAM: $CMAKE_MAKE_PROGRAM"
-echo "Using CMAKE_ARGS: $CMAKE_ARGS"
 
 check_step "Install vllm"
-uv pip install --python "$VENV_DIR/bin/python" --torch-backend=auto --no-build-isolation "$VLLM_SPEC"
+"$VENV_DIR/bin/pip" install --upgrade pip
+"$VENV_DIR/bin/pip" install --upgrade setuptools wheel
+"$VENV_DIR/bin/pip" install "$VLLM_SPEC"
 status_ok
 
 cat <<MSG
