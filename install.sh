@@ -98,6 +98,14 @@ MSG
   exit 1
 fi
 
+if ! command -v ninja >/dev/null 2>&1; then
+  cat <<'MSG' >&2
+ERROR: ninja is not installed or not on PATH.
+Install ninja before rerunning this script.
+MSG
+  exit 1
+fi
+
 if ! PYTHON_BIN="$(detect_python_bin)"; then
   cat <<'MSG' >&2
 ERROR: no usable python3 interpreter was found on PATH.
@@ -135,6 +143,15 @@ else
 ERROR: GCC_TOOLSET_ENABLE is set but does not point to a readable enable script.
 MSG
   exit 1
+fi
+
+if command -v gcc >/dev/null 2>&1; then
+  echo "[$(date -Is)] gcc: $(command -v gcc)"
+  gcc --version | sed -n '1p'
+fi
+if command -v g++ >/dev/null 2>&1; then
+  echo "[$(date -Is)] g++: $(command -v g++)"
+  g++ --version | sed -n '1p'
 fi
 
 if [[ -z "$CUDA_HOME" ]]; then
