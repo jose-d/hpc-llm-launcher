@@ -6,6 +6,36 @@ VENV_DIR="${VENV_DIR:-$ROOT_DIR/.venv}"
 VLLM_SPEC="${VLLM_SPEC:-vllm}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 CUDA_HOME="${CUDA_HOME:-}"
+GCC_TOOLSET_ENABLE="${GCC_TOOLSET_ENABLE:-}"
+
+detect_gcc_toolset_enable() {
+  if [[ -n "$GCC_TOOLSET_ENABLE" && -f "$GCC_TOOLSET_ENABLE" ]]; then
+    printf '%s\n' "$GCC_TOOLSET_ENABLE"
+    return 0
+  fi
+
+  local best_enable=""
+  local best_version=0
+  local candidate
+  for candidate in /opt/rh/gcc-toolset-*/enable; do
+    [[ -e "$candidate" ]] || continue
+    local candidate_version
+    candidate_version="${candidate##*/gcc-toolset-}"
+    candidate_version="${candidate_version%/enable}"
+    candidate_version="${candidate_version%%.*}"
+    if [[ "$candidate_version" =~ ^[0-9]+$ ]] && (( candidate_version > best_version )); then
+      best_enable="$candidate"
+      best_version="$candidate_version"
+    fi
+  done
+
+  if [[ -n "$best_enable" ]]; then
+    printf '%s\n' "$best_enable"
+    return 0
+  fi
+
+  return 1
+}
 
 detect_cuda_home() {
   if [[ -n "$CUDA_HOME" && -d "$CUDA_HOME" ]]; then
@@ -49,6 +79,21 @@ fi
 
 mkdir -p "$ROOT_DIR"
 
+if [[ -z "$GCC_TOOLSET_ENABLE" ]]; then
+  if GCC_TOOLSET_ENABLE="$(detect_gcc_toolset_enable)"; then
+    # shellcheck disable=SC1090
+    source "$GCC_TOOLSET_ENABLE"
+  fi
+elif [[ -f "$GCC_TOOLSET_ENABLE" ]]; then
+  # shellcheck disable=SC1090
+  source "$GCC_TOOLSET_ENABLE"
+else
+  cat <<'MSG' >&2
+ERROR: GCC_TOOLSET_ENABLE is set but does not point to a readable enable script.
+MSG
+  exit 1
+fi
+
 if [[ -z "$CUDA_HOME" ]]; then
   if CUDA_HOME="$(detect_cuda_home)"; then
     export CUDA_HOME
@@ -79,6 +124,7 @@ Created:
 Installed:
 - vllm from spec: $VLLM_SPEC
 - CUDA_HOME: $CUDA_HOME
+- GCC_TOOLSET_ENABLE: ${GCC_TOOLSET_ENABLE:-<not set>}
 
 Next steps:
 - copy .env.example to .env
