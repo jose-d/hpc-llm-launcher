@@ -6,8 +6,6 @@ VENV_DIR="${VENV_DIR:-$ROOT_DIR/.venv}"
 VLLM_SPEC="${VLLM_SPEC:-vllm}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 PYTHON_BIN="${PYTHON_BIN:-}"
-CUDA_HOME="${CUDA_HOME:-}"
-GCC_TOOLSET_ENABLE="${GCC_TOOLSET_ENABLE:-}"
 RED="\033[31m"
 GREEN="\033[32m"
 RESET="\033[0m"
@@ -22,67 +20,6 @@ status_ok() {
 
 status_fail() {
   printf '%b[fail]%b\n' "$RED" "$RESET"
-}
-
-detect_gcc_toolset_enable() {
-  if [[ -n "$GCC_TOOLSET_ENABLE" && -f "$GCC_TOOLSET_ENABLE" ]]; then
-    printf '%s\n' "$GCC_TOOLSET_ENABLE"
-    return 0
-  fi
-
-  local best_enable=""
-  local best_version=0
-  local candidate
-  for candidate in /opt/rh/gcc-toolset-*/enable; do
-    [[ -e "$candidate" ]] || continue
-    local candidate_version
-    candidate_version="${candidate##*/gcc-toolset-}"
-    candidate_version="${candidate_version%/enable}"
-    candidate_version="${candidate_version%%.*}"
-    if [[ "$candidate_version" =~ ^[0-9]+$ ]] && (( candidate_version > best_version )); then
-      best_enable="$candidate"
-      best_version="$candidate_version"
-    fi
-  done
-
-  if [[ -n "$best_enable" ]]; then
-    printf '%s\n' "$best_enable"
-    return 0
-  fi
-
-  return 1
-}
-
-detect_cuda_home() {
-  if [[ -n "$CUDA_HOME" && -d "$CUDA_HOME" ]]; then
-    printf '%s\n' "$CUDA_HOME"
-    return 0
-  fi
-
-  if command -v nvcc >/dev/null 2>&1; then
-    local nvcc_path
-    nvcc_path="$(command -v nvcc)"
-    if [[ "$nvcc_path" == */bin/nvcc ]]; then
-      printf '%s\n' "${nvcc_path%/bin/nvcc}"
-      return 0
-    fi
-  fi
-
-  for candidate in \
-    /usr/local/cuda \
-    /usr/local/cuda-12 \
-    /usr/local/cuda-12.* \
-    /usr/local/cuda-13 \
-    /usr/local/cuda-13.* \
-    /opt/cuda \
-    /usr/lib/cuda; do
-    if [[ -d "$candidate" ]]; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
-  done
-
-  return 1
 }
 
 detect_python_bin() {
@@ -111,17 +48,6 @@ if ! command -v uv >/dev/null 2>&1; then
   cat <<'MSG' >&2
 ERROR: uv is not installed or not on PATH.
 Install uv first, then rerun this script.
-MSG
-  exit 1
-fi
-status_ok
-
-check_step "ninja"
-if ! command -v ninja >/dev/null 2>&1; then
-  status_fail >&2
-  cat <<'MSG' >&2
-ERROR: ninja is not installed or not on PATH.
-Install ninja before rerunning this script.
 MSG
   exit 1
 fi
@@ -156,54 +82,6 @@ echo "Using Python: $PYTHON_BIN ($PYTHON_VERSION)"
 
 mkdir -p "$ROOT_DIR"
 
-check_step "GCC toolset"
-if [[ -z "$GCC_TOOLSET_ENABLE" ]]; then
-  if GCC_TOOLSET_ENABLE="$(detect_gcc_toolset_enable)"; then
-    # shellcheck disable=SC1090
-    source "$GCC_TOOLSET_ENABLE"
-  fi
-elif [[ -f "$GCC_TOOLSET_ENABLE" ]]; then
-  # shellcheck disable=SC1090
-  source "$GCC_TOOLSET_ENABLE"
-else
-  status_fail >&2
-  cat <<'MSG' >&2
-ERROR: GCC_TOOLSET_ENABLE is set but does not point to a readable enable script.
-MSG
-  exit 1
-fi
-status_ok
-echo "Using compiler toolset: ${GCC_TOOLSET_ENABLE:-<not set>}"
-
-if command -v gcc >/dev/null 2>&1; then
-  echo "gcc: $(command -v gcc)"
-  gcc --version | sed -n '1p'
-fi
-if command -v g++ >/dev/null 2>&1; then
-  echo "g++: $(command -v g++)"
-  g++ --version | sed -n '1p'
-fi
-
-check_step "CUDA toolkit"
-if [[ -z "$CUDA_HOME" ]]; then
-  if CUDA_HOME="$(detect_cuda_home)"; then
-    export CUDA_HOME
-  fi
-fi
-
-if [[ -z "${CUDA_HOME:-}" ]]; then
-  status_fail >&2
-  cat <<'MSG' >&2
-ERROR: CUDA_HOME is not set and CUDA could not be autodetected.
-Install or load a CUDA toolkit before running this script, or set CUDA_HOME explicitly.
-MSG
-  exit 1
-fi
-status_ok
-echo "Using CUDA_HOME: $CUDA_HOME"
-
-export CUDA_HOME
-
 check_step "Create venv"
 uv python install "$PYTHON_VERSION" >/dev/null 2>&1 || true
 UV_VENV_CLEAR=1 uv venv --clear --python "$PYTHON_BIN" "$VENV_DIR"
@@ -213,12 +91,8 @@ check_step "Upgrade pip"
 uv pip install --python "$VENV_DIR/bin/python" --upgrade pip
 status_ok
 
-check_step "Install build deps"
-uv pip install --python "$VENV_DIR/bin/python" ninja numpy
-status_ok
-
 check_step "Install vllm"
-uv pip install --python "$VENV_DIR/bin/python" "$VLLM_SPEC"
+uv pip install --python "$VENV_DIR/bin/python" --torch-backend=auto "$VLLM_SPEC"
 status_ok
 
 cat <<MSG
@@ -230,8 +104,6 @@ Created:
 Installed:
 - vllm from spec: $VLLM_SPEC
 - PYTHON_BIN: $PYTHON_BIN
-- CUDA_HOME: $CUDA_HOME
-- GCC_TOOLSET_ENABLE: ${GCC_TOOLSET_ENABLE:-<not set>}
 
 Next steps:
 - copy .env.example to .env
