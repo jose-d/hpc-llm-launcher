@@ -91,6 +91,10 @@ check_step "Upgrade pip"
 uv pip install --python "$VENV_DIR/bin/python" --upgrade pip
 status_ok
 
+check_step "Install torch"
+uv pip install --python "$VENV_DIR/bin/python" --torch-backend=auto torch
+status_ok
+
 check_step "Install vllm"
 uv pip install --python "$VENV_DIR/bin/python" --torch-backend=auto --no-build-isolation "$VLLM_SPEC"
 status_ok
