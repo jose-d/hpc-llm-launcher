@@ -4,3 +4,7 @@
 *.swo
 logs/
 run/
+*.out
+*.log
+.codex
+.cache
