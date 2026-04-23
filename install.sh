@@ -64,16 +64,23 @@ export CC="$(command -v gcc)"
 export CXX="$(command -v g++)"
 export CUDAHOSTCXX="$CXX"
 export CUDA_HOME="$(cd "$(dirname "$(command -v nvcc)")/.." && pwd)"
+
+echo "Creating virtualenv: $VENV_DIR"
+"$PYTHON_BIN" -m venv "$VENV_DIR"
 export VLLM_PYTHON_EXECUTABLE="$VENV_DIR/bin/python"
 
 echo "Using CC: $CC"
 echo "Using CXX: $CXX"
 echo "Using CUDA_HOME: $CUDA_HOME"
 echo "Using Python: $(command -v "$PYTHON_BIN")"
+echo "Using virtualenv Python: $VLLM_PYTHON_EXECUTABLE"
 echo "Using uv: $(command -v "$UV_BIN")"
 
+echo "Installing torch: $TORCH_SPEC"
+"$UV_BIN" pip install --python "$VLLM_PYTHON_EXECUTABLE" --extra-index-url "$PYTORCH_EXTRA_INDEX_URL" "$TORCH_SPEC"
+
 echo "Installing vllm: $VLLM_SPEC"
-"$UV_BIN" pip install vllm --torch-backend=auto
+"$UV_BIN" pip install --python "$VLLM_PYTHON_EXECUTABLE" --extra-index-url "$VLLM_EXTRA_INDEX_URL" "$VLLM_SPEC"
 
 cat <<MSG
 Install complete.
