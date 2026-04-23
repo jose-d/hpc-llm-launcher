@@ -64,10 +64,10 @@ export CC="$(command -v gcc)"
 export CXX="$(command -v g++)"
 export CUDAHOSTCXX="$CXX"
 export CUDA_HOME="$(cd "$(dirname "$(command -v nvcc)")/.." && pwd)"
-export VLLM_PYTHON_EXECUTABLE="$VENV_DIR/bin/python"
 
 echo "Creating virtualenv: $VENV_DIR"
 "$PYTHON_BIN" -m venv "$VENV_DIR"
+export VLLM_PYTHON_EXECUTABLE="$VENV_DIR/bin/python"
 
 echo "Using CC: $CC"
 echo "Using CXX: $CXX"
